@@ -8,9 +8,26 @@ spice_runner.py
 """
 
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+
+def find_ngspice():
+    """
+    실행할 ngspice 프로그램을 찾는다.
+    Windows에서는 ngspice.exe가 창을 띄우는 GUI 버전이라
+    콘솔용 ngspice_con.exe를 우선으로 쓴다.
+    """
+    for name in ("ngspice_con", "ngspice"):
+        path = shutil.which(name)
+        if path:
+            return path
+    raise FileNotFoundError(
+        "ngspice를 찾을 수 없음. 설치 후 Spice64/bin 폴더를 PATH에 추가했는지, "
+        "터미널을 새로 열었는지 확인할 것."
+    )
 
 
 def fill_template(template_path, params):
@@ -68,7 +85,7 @@ def run_simulation(template_path, params, timeout=30):
         cir_file = Path(tmp) / "run.cir"
         cir_file.write_text(netlist, encoding="utf-8")
         proc = subprocess.run(
-            ["ngspice", "-b", str(cir_file)],
+            [find_ngspice(), "-b", str(cir_file)],
             capture_output=True, text=True, timeout=timeout,
         )
 

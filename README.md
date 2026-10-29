@@ -30,7 +30,8 @@ ai-circuit-opt/
      `Spice64/bin` 폴더를 환경변수 PATH에 추가
    - Mac: `brew install ngspice`
    - Ubuntu: `sudo apt install ngspice`
-3. 터미널에서 `ngspice --version` 이 나오면 성공
+3. 터미널을 새로 열고 `ngspice_con --version` (Windows) 또는 `ngspice --version` (Mac/Linux) 이 나오면 성공
+   - Windows는 ngspice.exe가 GUI 버전이라 코드에서는 ngspice_con.exe를 자동으로 우선 사용함
 4. `pip install -r requirements.txt`
 
 ## 1단계 실행
