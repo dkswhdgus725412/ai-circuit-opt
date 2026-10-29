@@ -7,7 +7,7 @@ ngspice + Optuna (+ LLM)로 자동 최적화하는 프로젝트.
 
 - [x] 1단계: Python에서 ngspice 실행하고 측정값 받아오기
 - [x] 2단계: 기본 buck 컨버터로 Optuna 최적화 루프 완성
-- [ ] 3단계: baseline(손계산 설계)과 AI 결과 비교
+- [x] 3단계: baseline(손계산 설계)과 AI 결과 비교
 - [ ] 4단계: 팀원 실제 회로(컨버터 / 모터 구동)로 교체
 - [ ] 5단계: LLM 레이어 추가 (선택)
 
@@ -19,6 +19,7 @@ ai-circuit-opt/
     rc_lowpass.cir            1단계 테스트 회로
     buck_converter.cir        2단계 buck 컨버터 템플릿
     buck_converter_spec.py    buck 회로 정의 (변수 범위, 제약, 목표)
+    buck_baseline.py          사람이 교과서 공식으로 손계산한 baseline 설계
   src/
     spice_runner.py           템플릿 채우기 -> ngspice 실행 -> .meas 결과 dict
     circuit_spec.py           회로 정의 형식 (팀 공통)
@@ -83,6 +84,34 @@ Optuna가 바꿔가며 효율을 최대로 만드는 설계를 찾는다.
   -> "L 크게 / 주파수 높게 하면 리플은 줄지만 손실이 늘어나는" trade-off가 생김
 - 60회 기준 약 1분, 효율 약 93.4% 설계를 찾음 (seed=0)
 - 전체 trial 기록은 `results/buck_trials.csv` (엑셀로 바로 열림)
+
+## 3단계 실행
+
+```
+python examples\step3_compare_baseline.py        (seed 3개 x 60회, 약 3분)
+python examples\step3_compare_baseline.py 100    (seed 3개 x 100회)
+```
+
+같은 buck 컨버터를 사람이 손계산한 설계 2개와 AI 설계를 비교한다.
+
+- 사람 A: 이상적 공식 D = Vout/Vin (손실 무시)
+- 사람 B: 손실 보정 공식 D = (Vout+Vd)/(Vin-Vsw+Vd), fsw 200kHz, 리플전류 40%, C 여유 2배, E6 표준값
+- AI: Optuna, seed 0/1/2 (운이 아니라는 걸 보여주려고 여러 번)
+
+결과 (60회 기준)
+
+| 설계 | 효율 [%] | 평균전압 [V] | 리플 [mV] | 조건 |
+|---|---|---|---|---|
+| 사람 A | 92.78 | 3.882 | 10.5 | X (평균전압 미달) |
+| 사람 B | 93.19 | 4.121 | 10.6 | O |
+| AI seed 0 | 93.44 | 4.170 | 6.9 | O |
+| AI seed 1 | 93.51 | 4.121 | 9.2 | O |
+| AI seed 2 | 93.52 | 4.173 | 14.4 | O |
+
+- AI가 사람 B보다 평균 +0.30 %p (seed 3개 모두 +0.25 이상)
+- 이 회로는 손실 요소가 단순해서 효율 차이가 작다. 실제 팀 회로(손실 요소가 많고
+  변수가 서로 얽힌 회로)로 바꾸면 차이가 더 커질 것으로 예상
+- 결과 파일: `results/step3_comparison.csv`, `results/step3_convergence.png`
 
 ## 새 회로 추가하는 법 (팀 공통 규칙)
 
