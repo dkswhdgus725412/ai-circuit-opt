@@ -1,0 +1,54 @@
+* Buck converter (diode type) template - step 2
+* Variables (filled by Python):
+*   {{L}}   inductor [H]
+*   {{C}}   output capacitor [F]
+*   {{FSW}} switching frequency [Hz]
+*   {{D}}   duty ratio [0~1]
+*
+* Spec: Vin = 12V, load = 4.2 ohm (about 1A at 4.2V)
+* Loss model (so that a trade-off exists):
+*   - switch on-resistance 50 mohm
+*   - Schottky diode forward drop + 30 mohm
+*   - inductor DCR grows with L (1.5 mohm per uH)  -> big L = more conduction loss
+*   - 1nF node capacitance at switch node            -> high FSW = more switching loss
+*   - capacitor ESR 20 mohm
+
+.param Lval={{L}} Cval={{C}} fsw={{FSW}} duty={{D}}
+.param T={1/fsw}
+.param Ton={duty/fsw}
+.param DCR={Lval*1.5e3}
+* rough steady-state guess, used as initial condition (faster settling)
+.param Vest={duty*12-0.33}
+.param Iest={Vest/4.2}
+
+Vin in 0 DC 12
+Vg ctrl 0 PULSE(0 5 0 10n 10n {Ton-10n} {T})
+S1 in sw ctrl 0 SWMOD
+.model SWMOD SW(Ron=0.05 Roff=1Meg Vt=2.5 Vh=0)
+Coss sw 0 1n
+D1 0 sw DSCH
+.model DSCH D(Is=1e-5 N=1.05 Rs=0.03 Cjo=200p)
+
+L1 sw lx {Lval} ic={Iest}
+RL lx out {DCR}
+C1 out cx {Cval} ic={Vest}
+RESR cx 0 0.02
+Rload out 0 4.2
+
+* power probes (as node voltages so .meas can average them)
+Bpin pin 0 V=-v(in)*i(Vin)
+Bpout pout 0 V=v(out)*v(out)/4.2
+
+* start near steady state (uic + ic) so 3ms is enough
+.tran {T/200} 3m 0 {T/100} uic
+.save v(out) v(pin) v(pout)
+
+* measure only the last 0.5ms (steady state)
+.meas tran vavg   AVG v(out)  FROM=2.5m TO=3m
+.meas tran vmax   MAX v(out)  FROM=2.5m TO=3m
+.meas tran ripple PP  v(out)  FROM=2.5m TO=3m
+.meas tran pin    AVG v(pin)  FROM=2.5m TO=3m
+.meas tran pout   AVG v(pout) FROM=2.5m TO=3m
+.meas tran eff    PARAM='pout/pin'
+
+.end
