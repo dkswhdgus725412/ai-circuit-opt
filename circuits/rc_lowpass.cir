@@ -1,0 +1,18 @@
+* RC Low-pass filter template (step 1 test circuit)
+* {{R}}, {{C}} are filled in by Python (spice_runner.py)
+
+V1 in 0 DC 0 AC 1
+R1 in out {{R}}
+C1 out 0 {{C}}
+
+.ac dec 1000 10 1Meg
+
+* batch 모드에서는 .save 로 저장할 노드를 꼭 지정해야 .meas가 동작함
+.save v(out)
+
+* -3dB cutoff frequency
+.meas ac fc WHEN vdb(out)=-3
+* gain at 10kHz (dB)
+.meas ac gain_10k FIND vdb(out) AT=10k
+
+.end
