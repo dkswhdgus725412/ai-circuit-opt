@@ -30,7 +30,47 @@ ai-circuit-opt/
 
 ## 설치
 
-### 1. ngspice
+### Arch Linux (bash / zsh)
+
+시스템 ngspice와 Python 가상환경을 사용한다.
+시스템 패키지는 전체 업그레이드와 함께 설치한다. 프로젝트 루트에서 실행:
+
+```sh
+sudo pacman -Syu --needed python python-pip ngspice
+
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+
+ngspice --version
+python examples/step1_rc_test.py
+python examples/step2_buck_optimize.py
+python examples/step3_compare_baseline.py
+```
+
+- 프로젝트 의존성은 위에서 만든 가상환경에 설치한다.
+- 새 터미널에서는 프로젝트 루트에서 `source .venv/bin/activate`로 활성화한다.
+  fish에서는 `source .venv/bin/activate.fish`를 사용한다.
+- 가상환경의 Python을 직접 지정해 `.venv/bin/python examples/step1_rc_test.py`로 실행할 수 있다.
+- Python의 minor 버전 업데이트 후에는 새 가상환경을 만들고 의존성을 설치한다.
+- ngspice는 PATH에서 자동 탐색한다.
+  실행 파일을 직접 지정하려면 `export NGSPICE_PATH=/usr/bin/ngspice`를 사용한다.
+  PATH 자동 탐색으로 전환하려면 `unset NGSPICE_PATH`를 실행한다.
+  `NGSPICE_PATH`에는 실행 가능한 파일 경로를 지정한다.
+- 비교 그래프는 PNG 파일로 저장한다.
+
+검증 환경: Arch Linux, Python 3.14.9, ngspice 47, NumPy 2.5.4,
+Optuna 5.0.0, Matplotlib 3.11.2에서 1~3단계 실행을 확인했다.
+
+Arch/Linux 회귀 테스트 (가상환경 활성화 후):
+
+```sh
+python -m unittest discover -s tests -p test_spice_runner.py -v
+```
+
+실제 RC 시뮬레이션 테스트는 PATH에 `ngspice`가 등록된 환경에서 실행한다.
+
+### 다른 OS: ngspice
 - Windows: https://ngspice.sourceforge.io/download.html 에서 받아서 압축을 풀고
   `Spice64` 폴더를 `C:\Spice64` 에 둔다.
   - `C:\Spice64` 에 두면 PATH 등록을 안 해도 코드가 자동으로 찾는다.
@@ -42,9 +82,9 @@ ai-circuit-opt/
 
 확인: `C:\Spice64\bin\ngspice_con.exe --version` 에서 버전이 나오면 성공.
 
-### 2. Python 3.13 + 가상환경 (중요)
+### Windows: Python + 가상환경 (명령 프롬프트)
 
-Python 3.15는 optuna가 쓰는 PyYAML 설치가 실패하므로 **3.13** 으로 맞춘다.
+Windows는 기존 Python 3.13 환경을 사용하고, Arch에서는 Python 3.14.9로 실행을 확인했다.
 
 ```
 py install 3.13
@@ -62,7 +102,7 @@ python -m pip install -r requirements.txt
 ## 1단계 실행
 
 ```
-python examples\step1_rc_test.py
+python examples/step1_rc_test.py
 ```
 
 RC 저역통과 필터의 차단주파수를 시뮬레이션으로 구해서 이론값 1/(2 pi R C)와 비교한다.
@@ -70,9 +110,11 @@ RC 저역통과 필터의 차단주파수를 시뮬레이션으로 구해서 이
 
 ## 2단계 실행
 
+기본 60회 실행 또는 인자로 150회 지정:
+
 ```
-python examples\step2_buck_optimize.py        (기본 60회)
-python examples\step2_buck_optimize.py 150    (150회)
+python examples/step2_buck_optimize.py
+python examples/step2_buck_optimize.py 150
 ```
 
 12V -> 약 4.2V buck 컨버터(부하 4.2 ohm, 약 1A)의 L, C, 스위칭 주파수, 듀티를
@@ -87,9 +129,11 @@ Optuna가 바꿔가며 효율을 최대로 만드는 설계를 찾는다.
 
 ## 3단계 실행
 
+seed 3개를 각각 기본 60회 실행하거나, 인자로 각각 100회 지정:
+
 ```
-python examples\step3_compare_baseline.py        (seed 3개 x 60회, 약 3분)
-python examples\step3_compare_baseline.py 100    (seed 3개 x 100회)
+python examples/step3_compare_baseline.py
+python examples/step3_compare_baseline.py 100
 ```
 
 같은 buck 컨버터를 사람이 손계산한 설계 2개와 AI 설계를 비교한다.
@@ -112,29 +156,3 @@ python examples\step3_compare_baseline.py 100    (seed 3개 x 100회)
 - 이 회로는 손실 요소가 단순해서 효율 차이가 작다. 실제 팀 회로(손실 요소가 많고
   변수가 서로 얽힌 회로)로 바꾸면 차이가 더 커질 것으로 예상
 - 결과 파일: `results/step3_comparison.csv`, `results/step3_convergence.png`
-
-## 새 회로 추가하는 법 (팀 공통 규칙)
-
-회로 하나 = **템플릿(.cir) + 회로 정의(_spec.py)** 두 파일.
-최적화 엔진(optimizer.py)은 건드리지 않는다.
-
-템플릿 규칙
-1. 바꿀 값은 `{{이름}}` 으로 표시 (예: `.param Lval={{L}}`)
-2. batch 모드라서 `.save v(노드)` 로 측정에 쓰는 노드를 꼭 저장
-3. 평가에 쓸 값은 전부 `.meas` 로 뽑기 (이름은 소문자로 받아짐)
-4. 과도해석(.tran)은 정상상태 구간만 측정 (FROM=... TO=...)
-5. 파일 맨 위 주석에 변수 목록과 단위 적어두기
-
-회로 정의는 `circuits/buck_converter_spec.py` 를 복사해서
-변수 범위(params), 목표(objective), 제약(constraints)만 바꾸면 된다.
-
-## 사용 예
-
-```python
-from spice_runner import run_simulation
-
-results, log = run_simulation("circuits/rc_lowpass.cir", {"R": 1000, "C": 100e-9})
-print(results)   # {'fc': 1587.8, 'gain_10k': -16.07}
-```
-
-측정이 실패한 값은 dict에 빠져 있으므로, 최적화에서는 "필요한 값이 없으면 탈락"으로 처리한다.

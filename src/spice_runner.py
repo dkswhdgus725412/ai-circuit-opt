@@ -23,24 +23,33 @@ def find_ngspice():
     """
     # 1순위: 환경변수 NGSPICE_PATH 로 직접 지정한 경로
     custom = os.environ.get("NGSPICE_PATH")
-    if custom and Path(custom).is_file():
-        return custom
+    if custom:
+        path = shutil.which(custom)
+        if path:
+            return path
+        raise FileNotFoundError(
+            f"NGSPICE_PATH로 지정한 실행 파일을 찾을 수 없거나 실행 권한이 없음: {custom}"
+        )
 
     # 2순위: PATH 에 등록된 ngspice
-    for name in ("ngspice_con", "ngspice"):
+    names = ("ngspice_con", "ngspice") if os.name == "nt" else ("ngspice",)
+    for name in names:
         path = shutil.which(name)
         if path:
             return path
 
     # 3순위: Windows 기본 설치 위치 (PATH 등록을 안 했어도 동작하게)
-    for candidate in (r"C:\Spice64\bin\ngspice_con.exe",
-                      r"C:\Program Files\Spice64\bin\ngspice_con.exe"):
-        if Path(candidate).is_file():
-            return candidate
+    if os.name == "nt":
+        for candidate in (r"C:\Spice64\bin\ngspice_con.exe",
+                          r"C:\Program Files\Spice64\bin\ngspice_con.exe"):
+            if Path(candidate).is_file():
+                return candidate
 
     raise FileNotFoundError(
-        "ngspice를 찾을 수 없음. 설치 후 Spice64/bin 폴더를 PATH에 추가했는지, "
-        "터미널을 새로 열었는지 확인할 것."
+        "ngspice를 찾을 수 없음. Arch Linux: sudo pacman -S ngspice; "
+        "Ubuntu: sudo apt install ngspice; macOS: brew install ngspice. "
+        "Windows는 Spice64/bin을 PATH에 추가하거나, "
+        "NGSPICE_PATH에 실행 파일 전체 경로를 지정할 것."
     )
 
 
@@ -101,6 +110,8 @@ def run_simulation(template_path, params, timeout=30):
         proc = subprocess.run(
             [find_ngspice(), "-b", str(cir_file)],
             capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace",
+            env={**os.environ, "LC_ALL": "C"},
         )
 
     output = proc.stdout + proc.stderr
